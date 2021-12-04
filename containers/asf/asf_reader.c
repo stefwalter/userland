@@ -1936,8 +1936,6 @@ static VC_CONTAINER_STATUS_T seek_to_positions(VC_CONTAINER_T *p_ctx, uint64_t t
       }
 
       {
-         ASF_PACKET_STATE *p_state = &p_ctx->tracks[index]->priv->module->local_packet_state;
-
          LOG_DEBUG(p_ctx, "seek track %u to pts %"PRIu64" (key:%i,moo:%i)",
             index, track_best_pts[index], p_state->stream_num >> 7, p_state->media_object_off);
       }
