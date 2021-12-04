@@ -1058,7 +1058,7 @@ static VC_CONTAINER_STATUS_T rtsp_merge_uris( VC_CONTAINER_T *p_ctx,
       if (!*p_merged_uri_str) goto tidy_up;
 
       memcpy(*p_merged_uri_str, relative_uri_str, len + 1);
-      *pmerged_uri_str[len] = 0;
+      *p_merged_uri_str[len] = 0;
       status = VC_CONTAINER_SUCCESS;
       goto tidy_up;
    }
