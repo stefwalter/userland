@@ -1303,7 +1303,7 @@ static VC_CONTAINER_STATUS_T mkv_read_subelements_track_entry( VC_CONTAINER_T *p
        id == MKV_ELEMENT_ID_TRACK_CODEC_ID ||
        id == MKV_ELEMENT_ID_TRACK_CODEC_NAME )
    {
-      char stringbuf[MKV_MAX_STRING_SIZE+1];
+      char stringbuf[MKV_MAX_STRING_SIZE+1] = { 0, };
 
       if(size > MKV_MAX_STRING_SIZE)
       {
@@ -1320,7 +1320,10 @@ static VC_CONTAINER_STATUS_T mkv_read_subelements_track_entry( VC_CONTAINER_T *p
       LOG_FORMAT(p_ctx, "%s", stringbuf);
 
       if(id == MKV_ELEMENT_ID_TRACK_CODEC_ID)
-         strncpy(track_module->codecid, stringbuf, MKV_CODECID_MAX-1);
+      {
+         memcpy(track_module->codecid, stringbuf, sizeof(track_module->codecid));
+         stringbuf[sizeof(stringbuf) - 1] = 0;
+      }
 
       return VC_CONTAINER_SUCCESS;
    }

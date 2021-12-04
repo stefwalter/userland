@@ -177,7 +177,7 @@ static VC_CONTAINER_FILTER_OPEN_FUNC_T load_library(void **handle, VC_CONTAINER_
    snprintf(filter_, sizeof(filter_), "%4.4s", (const char*)&filter);
    ptr = strchr(filter_, '\0');
    while (ptr > filter_ && isspace(*--ptr)) *ptr = '\0';
-   strncat(filter_, "_", 1);    
+   strncat(filter_, "_", 2);
 
    dl_name_len = strlen(DL_PATH_PREFIX) + strlen(filter_) + strlen(name) + strlen(DL_SUFFIX) + 1;
    dl_name = malloc(dl_name_len);

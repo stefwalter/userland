@@ -343,7 +343,7 @@ static VC_CONTAINER_STATUS_T id3_read_id3v1_tag( VC_CONTAINER_T *p_ctx )
 {
    VC_CONTAINER_STATUS_T status = VC_CONTAINER_SUCCESS;
    uint8_t track, genre;
-   char track_num[4] = {0};
+   char track_num[5] = {0};
 
    SKIP_STRING(p_ctx, 3, "ID3v1 identifier");
    /* ID3v1 title */
