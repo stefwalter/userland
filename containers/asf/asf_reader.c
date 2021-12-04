@@ -1852,7 +1852,7 @@ static VC_CONTAINER_STATUS_T seek_to_positions(VC_CONTAINER_T *p_ctx, uint64_t t
    unsigned int lowest_track, index, tracks;
    VC_CONTAINER_STATUS_T status = VC_CONTAINER_SUCCESS;
 
-   int64_t track_best_pts[ASF_TRACKS_MAX];
+   int64_t track_best_pts[ASF_TRACKS_MAX] = { 0, };
 
    if (*p_time == 0)
    {
