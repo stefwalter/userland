@@ -343,7 +343,7 @@ vchiq_bulk_test(void)
    VCHIQ_ELEMENT_T *element;
    int num_bulk_bufs = NUM_BULK_BUFS;
    uint32_t start, end;
-   int i;
+   intptr_t i;
 
    g_params.blocksize *= 1024;
 
@@ -431,14 +431,14 @@ vchiq_bulk_test(void)
    {
       vchiq_queue_bulk_transmit(vchiq_service, bulk_tx_data[i], g_params.blocksize, (void *)i);
 
-      vcos_log_trace("vchiq_test: queued bulk tx %d", i);
+      vcos_log_trace("vchiq_test: queued bulk tx %zd", i);
       bulk_tx_sent++;
 
       if (g_params.echo)
       {
          vchiq_queue_bulk_receive(vchiq_service, bulk_rx_data[i], g_params.blocksize, (void *)i);
 
-         vcos_log_trace("vchiq_test: queued bulk rx %d", i);
+         vcos_log_trace("vchiq_test: queued bulk rx %zd", i);
          bulk_rx_sent++;
       }
    }
@@ -1361,8 +1361,8 @@ clnt_callback(VCHIQ_REASON_T reason, VCHIQ_HEADER_T *header,
    }
    else if (reason == VCHIQ_BULK_TRANSMIT_DONE)
    {
-      int i = (int)bulk_userdata;
-      vcos_log_trace("  BULK_TRANSMIT_DONE(%d)", i);
+      intptr_t i = (intptr_t)bulk_userdata;
+      vcos_log_trace("  BULK_TRANSMIT_DONE(%zd)", i);
       if (bulk_tx_received < 0)
          vcos_event_signal(&g_server_reply);
       else
@@ -1371,19 +1371,19 @@ clnt_callback(VCHIQ_REASON_T reason, VCHIQ_HEADER_T *header,
          bulk_tx_received++;
          if (bulk_tx_sent < g_params.iters)
          {
-            vchiq_queue_bulk_transmit(service, bulk_tx_data[i % NUM_BULK_BUFS], g_params.blocksize, (void *)bulk_tx_sent);
+            vchiq_queue_bulk_transmit(service, bulk_tx_data[i % NUM_BULK_BUFS], g_params.blocksize, (void *)(intptr_t)bulk_tx_sent);
             bulk_tx_sent++;
          }
       }
    }
    else if (reason == VCHIQ_BULK_RECEIVE_DONE)
    {
-      int i = (int)bulk_userdata;
-      vcos_log_trace("  BULK_RECEIVE_DONE(%d): data '%s'", i, bulk_rx_data[i % NUM_BULK_BUFS]);
+      intptr_t i = (intptr_t)bulk_userdata;
+      vcos_log_trace("  BULK_RECEIVE_DONE(%zd): data '%s'", i, bulk_rx_data[i % NUM_BULK_BUFS]);
       vcos_assert(i == bulk_rx_received);
       if (g_params.verify && (mem_check(bulk_tx_data[i % NUM_BULK_BUFS], bulk_rx_data[i % NUM_BULK_BUFS], g_params.blocksize) != 0))
       {
-         vcos_log_error("* Data corruption - %d: %x, %x, %x", i, (unsigned int)bulk_tx_data[i % NUM_BULK_BUFS], (unsigned int)bulk_rx_data[i % NUM_BULK_BUFS], g_params.blocksize);
+         vcos_log_error("* Data corruption - %zx: %p, %p, %x", i, bulk_tx_data[i % NUM_BULK_BUFS], bulk_rx_data[i % NUM_BULK_BUFS], g_params.blocksize);
          VCOS_BKPT;
       }
       bulk_rx_received++;
@@ -1391,19 +1391,17 @@ clnt_callback(VCHIQ_REASON_T reason, VCHIQ_HEADER_T *header,
       {
          if (g_params.verify)
             memset(bulk_rx_data[i % NUM_BULK_BUFS], 0xff, g_params.blocksize);
-         vchiq_queue_bulk_receive(service, bulk_rx_data[i % NUM_BULK_BUFS], g_params.blocksize, (void *)bulk_rx_sent);
+         vchiq_queue_bulk_receive(service, bulk_rx_data[i % NUM_BULK_BUFS], g_params.blocksize, (void *)(intptr_t)bulk_rx_sent);
          bulk_rx_sent++;
       }
    }
    else if (reason == VCHIQ_BULK_TRANSMIT_ABORTED)
    {
-      int i = (int)bulk_userdata;
-      vcos_log_info("  BULK_TRANSMIT_ABORTED(%d)", i);
+      vcos_log_info("  BULK_TRANSMIT_ABORTED(%p)", bulk_userdata);
    }
    else if (reason == VCHIQ_BULK_RECEIVE_ABORTED)
    {
-      int i = (int)bulk_userdata;
-      vcos_log_info("  BULK_RECEIVE_ABORTED(%d)", i);
+      vcos_log_info("  BULK_RECEIVE_ABORTED(%p)", bulk_userdata);
    }
    if ((bulk_tx_received == g_params.iters) &&
       ((g_params.echo == 0) || (bulk_rx_received == g_params.iters)))
@@ -1440,8 +1438,8 @@ vchi_clnt_callback(void *callback_param,
    }
    else if (reason == VCHI_CALLBACK_BULK_SENT)
    {
-      int i = (int)handle;
-      vcos_log_trace("  BULK_TRANSMIT_DONE(%d)", i);
+      intptr_t i = (intptr_t)handle;
+      vcos_log_trace("  BULK_TRANSMIT_DONE(%zd)", i);
       if (bulk_tx_received < 0)
          vcos_event_signal(&g_server_reply);
       else
@@ -1453,19 +1451,19 @@ vchi_clnt_callback(void *callback_param,
             vchi_bulk_queue_transmit(service, bulk_tx_data[i % NUM_BULK_BUFS],
                g_params.blocksize,
                VCHI_FLAGS_CALLBACK_WHEN_OP_COMPLETE | VCHI_FLAGS_BLOCK_UNTIL_QUEUED,
-               (void *)bulk_tx_sent);
+               (void *)(intptr_t)bulk_tx_sent);
             bulk_tx_sent++;
          }
       }
    }
    else if (reason == VCHI_CALLBACK_BULK_RECEIVED)
    {
-      int i = (int)handle;
-      vcos_log_trace("  BULK_RECEIVE_DONE(%d): data '%s'", i, bulk_rx_data[i % NUM_BULK_BUFS]);
+      intptr_t i = (intptr_t)handle;
+      vcos_log_trace("  BULK_RECEIVE_DONE(%zd): data '%s'", i, bulk_rx_data[i % NUM_BULK_BUFS]);
       vcos_assert(i == bulk_rx_received);
       if (g_params.verify && (mem_check(bulk_tx_data[i % NUM_BULK_BUFS], bulk_rx_data[i % NUM_BULK_BUFS], g_params.blocksize) != 0))
       {
-         vcos_log_error("* Data corruption - %x, %x, %x", (unsigned int)bulk_tx_data[i % NUM_BULK_BUFS], (unsigned int)bulk_rx_data[i % NUM_BULK_BUFS], g_params.blocksize);
+         vcos_log_error("* Data corruption - %p, %p, %x", bulk_tx_data[i % NUM_BULK_BUFS], bulk_rx_data[i % NUM_BULK_BUFS], g_params.blocksize);
          VCOS_BKPT;
       }
       bulk_rx_received++;
@@ -1475,19 +1473,17 @@ vchi_clnt_callback(void *callback_param,
             memset(bulk_rx_data[i % NUM_BULK_BUFS], 0xff, g_params.blocksize);
          vchi_bulk_queue_receive(service, bulk_rx_data[i % NUM_BULK_BUFS], g_params.blocksize,
             VCHI_FLAGS_CALLBACK_WHEN_OP_COMPLETE | VCHI_FLAGS_BLOCK_UNTIL_QUEUED,
-            (void *)bulk_rx_sent);
+            (void *)(intptr_t)bulk_rx_sent);
          bulk_rx_sent++;
       }
    }
    else if (reason == VCHI_CALLBACK_BULK_TRANSMIT_ABORTED)
    {
-      int i = (int)handle;
-      vcos_log_info("  BULK_TRANSMIT_ABORTED(%d)", i);
+      vcos_log_info("  BULK_TRANSMIT_ABORTED(%p)", handle);
    }
    else if (reason == VCHI_CALLBACK_BULK_RECEIVE_ABORTED)
    {
-      int i = (int)handle;
-      vcos_log_info("  BULK_RECEIVE_ABORTED(%d)", i);
+      vcos_log_info("  BULK_RECEIVE_ABORTED(%p)", handle);
    }
    if ((bulk_tx_received == g_params.iters) && (bulk_rx_received == g_params.iters))
       vcos_event_signal(&g_shutdown);
@@ -1604,9 +1600,9 @@ static int mem_check(const void *expected, const void *actual, int size)
          int ce = ((const char *)expected)[i];
          int ca = ((const char *)actual)[i];
          if (ca != ce)
-            printf("%08x,%x: %02x <-> %02x\n", i + (unsigned int)actual, i, ce, ca);
+            printf("%p,%x: %02x <-> %02x\n", i + actual, i, ce, ca);
       }
-      printf("mem_check failed - buffer %x, size %d\n", (unsigned int)actual, size);
+      printf("mem_check failed - buffer %p, size %d\n", actual, size);
       return 1;
    }
    return 0;

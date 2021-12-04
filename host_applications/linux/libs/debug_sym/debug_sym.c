@@ -238,7 +238,7 @@ int OpenVideoCoreMemoryFileWithOffsetAndSize( const char *filename, VC_MEM_ACCES
                         else if ( !strncmp(&vc_mem_ptr[7], "mem_size=", 9) )
                         {
                             loadSize = ( size_t )strtoul( &vc_mem_ptr[7+9], NULL, 0);
-                            DBG("loadSize %x\n", loadSize);
+                            DBG("loadSize %zx\n", loadSize);
                         }
                         vc_mem_ptr++;
                     }
@@ -682,7 +682,7 @@ static int AccessVideoCoreMemory( VC_MEM_ACCESS_HANDLE_T vcHandle,
     // DMA allows memory to be accessed above 1008M and is more coherent so try this first
     if (mem_op == READ_MEM && vcHandle->use_vc_mem)
     {
-        DBG( "AccessVideoCoreMemory: %p, %x, %d", buf, origVcMemAddr, numBytes );
+        DBG( "AccessVideoCoreMemory: %p, %x, %zd", buf, origVcMemAddr, numBytes );
         int s = vc_mem_copy(buf, (uint32_t)origVcMemAddr, numBytes);
         if (s == 0)
             return 1;
