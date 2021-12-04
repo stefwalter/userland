@@ -757,7 +757,7 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
                   pstate->starttime=buffer->pts;
                pData->lasttime=buffer->pts;
                pts = buffer->pts - pData->starttime;
-               fprintf(pData->pts_file_handle,"%lld.%03lld\n", pts/1000, pts%1000);
+               fprintf(pData->pts_file_handle,"%zd.%03zd\n", pts/1000, pts%1000);
                pData->frame++;
             }
          }

@@ -1391,13 +1391,13 @@ void *vcsm_lock( unsigned int handle )
 
          if ( rc < 0 )
          {
-            vcos_log_error( "[%s]: [%d]: invalidate failed (rc: %d) - [%x;%x] - size: %u (hdl: %x) - cache incoherency",
+            vcos_log_error( "[%s]: [%d]: invalidate failed (rc: %d) - [%zx;%zx] - size: %zu (hdl: %x) - cache incoherency",
                             __func__,
                             getpid(),
                             rc,
-                            (unsigned int) cache.addr,
-                            (unsigned int) (cache.addr + cache.size),
-                            (unsigned int) (cache.addr + cache.size) - (unsigned int) cache.addr,
+                            (uintptr_t) cache.addr,
+                            (uintptr_t) (cache.addr + cache.size),
+                            (uintptr_t) (cache.addr + cache.size) - (uintptr_t) cache.addr,
                             cache.handle );
          }
       }
@@ -1631,13 +1631,13 @@ void *vcsm_lock_cache( unsigned int handle,
 
          if ( rc < 0 )
          {
-            vcos_log_error( "[%s]: [%d]: invalidate failed (rc: %d) - [%x;%x] - size: %u (hdl: %x) - cache incoherency",
+            vcos_log_error( "[%s]: [%d]: invalidate failed (rc: %d) - [%zx;%zx] - size: %zu (hdl: %x) - cache incoherency",
                             __func__,
                             getpid(),
                             rc,
-                            (unsigned int) cache.addr,
-                            (unsigned int) (cache.addr + cache.size),
-                            (unsigned int) (cache.addr + cache.size) - (unsigned int) cache.addr,
+                            (uintptr_t) cache.addr,
+                            (uintptr_t) (cache.addr + cache.size),
+                            (uintptr_t) (cache.addr + cache.size) - (uintptr_t) cache.addr,
                             cache.handle );
          }
       }
@@ -1778,13 +1778,13 @@ int vcsm_unlock_ptr_sp( void *usr_ptr, int cache_no_flush )
 
          if ( rc < 0 )
          {
-            vcos_log_error( "[%s]: [%d]: flush failed (rc: %d) - [%x;%x] - size: %u (hdl: %x) - cache incoherency",
+            vcos_log_error( "[%s]: [%d]: flush failed (rc: %d) - [%zx;%zx] - size: %zu (hdl: %x) - cache incoherency",
                             __func__,
                             getpid(),
                             rc,
-                            (unsigned int) cache.addr,
-                            (unsigned int) (cache.addr + cache.size),
-                            (unsigned int) (cache.addr + cache.size) - (unsigned int) cache.addr,
+                            (uintptr_t) cache.addr,
+                            (uintptr_t) (cache.addr + cache.size),
+                            (uintptr_t) (cache.addr + cache.size) - (uintptr_t) cache.addr,
                             cache.handle );
          }
       }
@@ -1941,9 +1941,9 @@ int vcsm_unlock_hdl_sp( unsigned int handle, int cache_no_flush )
                             __func__,
                             getpid(),
                             rc,
-                            (unsigned int) cache.addr,
-                            (unsigned int) (cache.addr + cache.size),
-                            (unsigned int) (cache.addr + cache.size) - (unsigned int) cache.addr,
+                            cache.addr,
+                            cache.addr + cache.size,
+                            cache.addr + cache.size - cache.addr,
                             cache.handle );
          }
       }

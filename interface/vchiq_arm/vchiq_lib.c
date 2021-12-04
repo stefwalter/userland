@@ -398,7 +398,7 @@ void
 vchiq_release_message(VCHIQ_SERVICE_HANDLE_T handle,
    VCHIQ_HEADER_T *header)
 {
-   vcos_log_trace( "%s handle=%08x, header=%x", __func__, (uint32_t)handle, (uint32_t)header );
+   vcos_log_trace( "%s handle=%08x, header=%p", __func__, (uint32_t)handle, header );
 
    free_msgbuf(header);
 }
@@ -1548,9 +1548,9 @@ completion_thread(void *arg)
          VCHIQ_SERVICE_T *service = (VCHIQ_SERVICE_T *)completion->service_userdata;
          if (service->base.callback)
          {
-            vcos_log_trace( "callback(%x, %x, %x(%x,%x), %x)",
-               completion->reason, (uint32_t)completion->header,
-               (uint32_t)&service->base, (uint32_t)service->lib_handle, (uint32_t)service->base.userdata, (uint32_t)completion->bulk_userdata );
+            vcos_log_trace( "callback(%x, %p, %p(%x,%p), %p)",
+               completion->reason, completion->header,
+               &service->base, (uint32_t)service->lib_handle, service->base.userdata, completion->bulk_userdata );
             service->base.callback(completion->reason, completion->header,
                service->lib_handle, completion->bulk_userdata);
          }

@@ -443,7 +443,7 @@ static VCHIQ_STATUS_T mmal_vc_vchiq_callback(VCHIQ_REASON_T reason,
 #ifdef VCOS_LOGGING_ENABLED
          mmal_worker_buffer_from_host *msg = (mmal_worker_buffer_from_host *)context;
 #endif
-         LOG_TRACE("bulk tx done: %p, %d", msg->buffer_header.data, msg->buffer_header.length);
+         LOG_TRACE("bulk tx done: %08x, %d", msg->buffer_header.data, msg->buffer_header.length);
       }
       break;
    case VCHIQ_BULK_RECEIVE_DONE:

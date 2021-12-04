@@ -352,10 +352,10 @@ VCHPRE_ void VCHPOST_ vc_cec_register_callback(CECSERVICE_CALLBACK_T callback, v
    if(lock_obtain() == 0){
       cecservice_client.notify_fn   = callback;
       cecservice_client.notify_data = callback_data;
-      vc_cec_log_info("CEC service registered callback 0x%x", (uint32_t) callback);
+      vc_cec_log_info("CEC service registered callback %p", callback);
       lock_release();
    } else {
-      vc_cec_log_error("CEC service registered callback 0x%x failed", (uint32_t) callback);
+      vc_cec_log_error("CEC service registered callback %p failed", callback);
    }
 }
 
