@@ -103,8 +103,6 @@ static char* cecservice_command_strings[] = {
    "end_of_list"
 };
 
-static const uint32_t max_command_strings = sizeof(cecservice_command_strings)/sizeof(char *);
-
 //Notification strings - must match vc_cec.h VC_CEC_NOTIFY_T
 static char* cecservice_notify_strings[] = {
    "none",
@@ -134,8 +132,6 @@ static char* cecservice_devicetype_strings[] = {
    "VidProc",
    "8", "9", "10", "11", "12", "13", "14", "invalid"
 };
-
-static const uint32_t max_devicetype_strings = sizeof(cecservice_devicetype_strings)/sizeof(char *);
 
 /******************************************************************************
 Static functions.
