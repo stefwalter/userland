@@ -1057,7 +1057,8 @@ static VC_CONTAINER_STATUS_T rtsp_merge_uris( VC_CONTAINER_T *p_ctx,
       *p_merged_uri_str = (char *)malloc(len + 1);
       if (!*p_merged_uri_str) goto tidy_up;
 
-      strncpy(*p_merged_uri_str, relative_uri_str, len);
+      memcpy(*p_merged_uri_str, relative_uri_str, len + 1);
+      *pmerged_uri_str[len] = 0;
       status = VC_CONTAINER_SUCCESS;
       goto tidy_up;
    }
@@ -1120,7 +1121,8 @@ static VC_CONTAINER_STATUS_T rtsp_parse_control_attribute( VC_CONTAINER_T *p_ctx
          LOG_ERROR(p_ctx, "RTSP: Failed to allocate control URI");
          return VC_CONTAINER_ERROR_OUT_OF_MEMORY;
       }
-      strncpy(*p_control_uri_str, base_uri_str, len);
+      memcpy(*p_control_uri_str, base_uri_str, len);
+      *p_control_uri_str[len] = 0;
    } else {
       status = rtsp_merge_uris(p_ctx, base_uri_str, attribute, p_control_uri_str);
    }
@@ -1245,7 +1247,8 @@ static VC_CONTAINER_STATUS_T rtsp_open_file_reader( VC_CONTAINER_T *p_ctx,
       goto tidy_up;
    }
 
-   strncpy(new_path, rtsp_path, len);
+   memcpy(new_path, rtsp_path, len + 1);
+   new_path[len] = 0;
    extension = strrchr(new_path, '.');          /* Find extension, to replace it */
    if (!extension)
       extension = new_path + strlen(new_path);  /* No extension, so append instead */
