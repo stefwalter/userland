@@ -53,6 +53,7 @@ static VCOS_LOG_CAT_T mmal_ipc_log_category;
  */
 typedef struct MMAL_WAITER_T
 {
+   int index;
    VCOS_SEMAPHORE_T sem;
    unsigned inuse;
    void *dest;                   /**< Where to write reply */
@@ -82,6 +83,187 @@ struct MMAL_CLIENT_T
    MMAL_BOOL_T inited;
 };
 
+/*****************************************************************************
+ * Lookup table functions for client_component handles.
+ * Required as the IPC is strictly 32bit, therefore 64bit userland can not
+ * pass in the required pointers.
+ *****************************************************************************/
+#define MAX_COMPONENT_HANDLES 64
+
+typedef struct
+{
+   int index;
+   unsigned inuse;
+   MMAL_COMPONENT_T *component;
+} MMAL_CLIENT_COMPONENT_T;
+
+typedef struct
+{
+   MMAL_CLIENT_COMPONENT_T components[MAX_COMPONENT_HANDLES];
+   VCOS_MUTEX_T lock;
+} MMAL_CLIENT_COMPONENT_POOL_T;
+
+static MMAL_CLIENT_COMPONENT_POOL_T client_component_pool;
+
+uint32_t mmal_vc_allocate_client_component(MMAL_COMPONENT_T *component)
+{
+   int i;
+
+   vcos_mutex_lock(&client_component_pool.lock);
+   for (i=0; i<MAX_COMPONENT_HANDLES; i++)
+   {
+      if (client_component_pool.components[i].inuse == 0)
+         break;
+   }
+
+   if (vcos_verify(i != MAX_COMPONENT_HANDLES))
+   {
+      client_component_pool.components[i].index = i;
+      client_component_pool.components[i].component = component;
+      client_component_pool.components[i].inuse = 1;
+   }
+   vcos_mutex_unlock(&client_component_pool.lock);
+
+   return i;
+}
+
+static MMAL_COMPONENT_T *lookup_client_component(int index)
+{
+   if (vcos_verify(index < MAX_COMPONENT_HANDLES))
+   {
+      vcos_assert(client_component_pool.components[index].inuse);
+      return client_component_pool.components[index].component;
+   }
+
+   return NULL;
+}
+
+void mmal_vc_release_client_component(MMAL_COMPONENT_T *component)
+{
+   int i;
+
+   vcos_mutex_lock(&client_component_pool.lock);
+   for (i=0; i<MAX_COMPONENT_HANDLES; i++)
+   {
+      if (client_component_pool.components[i].component == component)
+      {
+         client_component_pool.components[i].component = NULL;
+         client_component_pool.components[i].inuse = 0;
+      }
+   }
+   vcos_mutex_unlock(&client_component_pool.lock);
+}
+
+void mmal_vc_dump_client_components(void)
+{
+   int i;
+   int count = 0;
+
+   vcos_mutex_lock(&client_component_pool.lock);
+   for (i=0; i<MAX_COMPONENT_HANDLES; i++)
+   {
+      if (client_component_pool.components[i].inuse)
+      {
+         LOG_ERROR("%s: Entry %d in use for context %p", __func__, i, client_component_pool.components[i].component);
+         count++;
+      }
+   }
+   vcos_mutex_unlock(&client_component_pool.lock);
+   LOG_ERROR("%s: %u entries in use", __func__, count);
+}
+
+#define MAX_CLIENT_CONTEXTS 128
+
+typedef struct
+{
+   int index;
+   unsigned inuse;
+   MMAL_VC_CLIENT_BUFFER_CONTEXT_T *ctx;
+} MMAL_CLIENT_CONTEXT_T;
+
+typedef struct
+{
+   MMAL_CLIENT_CONTEXT_T contexts[MAX_CLIENT_CONTEXTS];
+   VCOS_MUTEX_T lock;
+} MMAL_CLIENT_CONTEXT_POOL_T;
+
+static MMAL_CLIENT_CONTEXT_POOL_T client_context_pool;
+#define CLIENT_CONTEXT_MAGIC 0xFEDC0000
+#define CLIENT_CONTEXT_MAGIC_MASK(a) (a & 0xFFFF)
+#define CLIENT_CONTEXT_MAGIC_CHECK(a) (a & 0xFFFF0000)
+
+uint32_t mmal_vc_allocate_client_context(MMAL_VC_CLIENT_BUFFER_CONTEXT_T *context)
+{
+   int i;
+
+   vcos_mutex_lock(&client_context_pool.lock);
+   for (i=0; i<MAX_CLIENT_CONTEXTS; i++)
+   {
+      if (client_context_pool.contexts[i].inuse == 0)
+         break;
+   }
+
+   if (vcos_verify(i != MAX_CLIENT_CONTEXTS))
+   {
+      client_context_pool.contexts[i].index = i;
+      client_context_pool.contexts[i].ctx = context;
+      client_context_pool.contexts[i].inuse = 1;
+   }
+   vcos_mutex_unlock(&client_context_pool.lock);
+
+   return i | CLIENT_CONTEXT_MAGIC;
+}
+
+MMAL_VC_CLIENT_BUFFER_CONTEXT_T *mmal_vc_lookup_client_context(int index)
+{
+   if (vcos_verify((CLIENT_CONTEXT_MAGIC_CHECK(index) == CLIENT_CONTEXT_MAGIC) &&
+                   (CLIENT_CONTEXT_MAGIC_MASK(index) < MAX_CLIENT_CONTEXTS)))
+   {
+      vcos_assert(client_context_pool.contexts[CLIENT_CONTEXT_MAGIC_MASK(index)].inuse);
+      return client_context_pool.contexts[CLIENT_CONTEXT_MAGIC_MASK(index)].ctx;
+   }
+
+   return NULL;
+}
+
+void mmal_vc_release_client_context(MMAL_VC_CLIENT_BUFFER_CONTEXT_T *context)
+{
+   int i;
+
+   vcos_mutex_lock(&client_context_pool.lock);
+   for (i=0; i<MAX_CLIENT_CONTEXTS; i++)
+   {
+      if (client_context_pool.contexts[i].ctx == context)
+      {
+         client_context_pool.contexts[i].ctx = NULL;
+         client_context_pool.contexts[i].inuse = 0;
+         break;
+      }
+   }
+   if (i >= MAX_CLIENT_CONTEXTS)
+      LOG_ERROR("Failed to release context %p - not found", context);
+
+   vcos_mutex_unlock(&client_context_pool.lock);
+}
+
+void mmal_vc_dump_client_contexts(void)
+{
+   int i;
+   int count = 0;
+
+   vcos_mutex_lock(&client_context_pool.lock);
+   for (i=0; i<MAX_CLIENT_CONTEXTS; i++)
+   {
+      if (client_context_pool.contexts[i].inuse)
+      {
+         LOG_ERROR("%s: Entry %d in use for context %p", __func__, i, client_context_pool.contexts[i].ctx);
+         count++;
+      }
+   }
+   vcos_mutex_unlock(&client_context_pool.lock);
+   LOG_ERROR("%s: %u entries in use", __func__, count);
+}
+
 /* One client per process/VC connection. Multiple threads may
  * be using a single client.
  */
@@ -90,6 +272,8 @@ static MMAL_CLIENT_T client;
 static void init_once(void)
 {
    vcos_mutex_create(&client.lock, VCOS_FUNCTION);
+   vcos_mutex_create(&client_component_pool.lock, VCOS_FUNCTION);
+   vcos_mutex_create(&client_context_pool.lock, VCOS_FUNCTION);
 }
 
 /** Create a pool of wait-structures.
@@ -107,6 +291,7 @@ static MMAL_STATUS_T create_waitpool(MMAL_WAITPOOL_T *waitpool)
    for (i=0; i<MAX_WAITERS; i++)
    {
       waitpool->waiters[i].inuse = 0;
+      waitpool->waiters[i].index = i;
       status = vcos_semaphore_create(&waitpool->waiters[i].sem,
                                      "mmal waiter", 0);
       if (status != VCOS_SUCCESS)
@@ -161,6 +346,19 @@ static MMAL_WAITER_T *get_waiter(MMAL_CLIENT_T *client)
    return waiter;
 }
 
+/** Look up a waiter reference based on the static client
+  */
+static MMAL_WAITER_T *lookup_waiter(uint32_t index)
+{
+   //NB this uses the static client variable, whilst most others use the client
+   //variable passed in. I don't believe there is a way to have multiple clients
+   //in one process, so this should be safe.
+   if (vcos_verify(index < MAX_WAITERS))
+      return &client.waitpool.waiters[index];
+
+   return NULL;
+}
+
 /** Return a waiter to the pool.
   */
 static void release_waiter(MMAL_CLIENT_T *client, MMAL_WAITER_T *waiter)
@@ -198,13 +396,15 @@ static void mmal_vc_handle_event_msg(VCHIQ_HEADER_T *vchiq_header,
                                     void *context)
 {
    mmal_worker_event_to_host *msg = (mmal_worker_event_to_host *)vchiq_header->data;
-   MMAL_COMPONENT_T *component = msg->client_component;
+   MMAL_COMPONENT_T *component = lookup_client_component(msg->client_component);
+   MMAL_VC_CLIENT_BUFFER_CONTEXT_T *client_context;
    MMAL_BUFFER_HEADER_T *buffer;
    MMAL_STATUS_T status;
    MMAL_PORT_T *port;
 
-   LOG_DEBUG("event to host, cmd 0x%08x len %d to component %p port (%d,%d)",
-         msg->cmd, msg->length, msg->client_component, msg->port_type, msg->port_num);
+   LOG_DEBUG("event to host, cmd 0x%08x len %d to component %u/%p port (%d,%d)",
+         msg->cmd, msg->length, msg->client_component, component, msg->port_type,
+         msg->port_num);
    (void)context;
 
    port = mmal_vc_port_by_number(component, msg->port_type, msg->port_num);
@@ -229,11 +429,12 @@ static void mmal_vc_handle_event_msg(VCHIQ_HEADER_T *vchiq_header,
    }
    buffer->length = msg->length;
 
+   client_context = mmal_vc_lookup_client_context(mmal_buffer_header_driver_data(buffer)->client_context);
    /* Sanity check that the event buffers have the proper vc client context */
    if (!vcos_verify(mmal_buffer_header_driver_data(buffer)->magic == MMAL_MAGIC &&
-          mmal_buffer_header_driver_data(buffer)->client_context &&
-          mmal_buffer_header_driver_data(buffer)->client_context->magic == MMAL_MAGIC &&
-          mmal_buffer_header_driver_data(buffer)->client_context->callback_event))
+          client_context &&
+          client_context->magic == MMAL_MAGIC &&
+          client_context->callback_event))
    {
       LOG_ERROR("event buffers not configured properly by component");
       goto error;
@@ -260,7 +461,7 @@ static void mmal_vc_handle_event_msg(VCHIQ_HEADER_T *vchiq_header,
       if (msg->length)
          memcpy(buffer->data, msg->data, msg->length);
 
-      mmal_buffer_header_driver_data(buffer)->client_context->callback_event(port, buffer);
+      client_context->callback_event(port, buffer);
       LOG_DEBUG("done callback back to client");
       vchiq_release_message(service, vchiq_header);
    }
@@ -324,29 +525,32 @@ static VCHIQ_STATUS_T mmal_vc_vchiq_callback(VCHIQ_REASON_T reason,
 
          if (msg->msgid == MMAL_WORKER_BUFFER_TO_HOST)
          {
+            MMAL_VC_CLIENT_BUFFER_CONTEXT_T *client_context;
             LOG_TRACE("buffer to host");
             mmal_worker_buffer_from_host *msg = (mmal_worker_buffer_from_host *)vchiq_header->data;
-            LOG_TRACE("len %d context %p", msg->buffer_header.length, msg->drvbuf.client_context);
-            vcos_assert(msg->drvbuf.client_context);
-            vcos_assert(msg->drvbuf.client_context->magic == MMAL_MAGIC);
+            client_context = mmal_vc_lookup_client_context(msg->drvbuf.client_context);
+            LOG_TRACE("len %d context %p (%08x)", msg->buffer_header.length, client_context, msg->drvbuf.client_context);
+            vcos_assert(client_context);
+            vcos_assert(client_context->magic == MMAL_MAGIC);
 
             /* If the buffer is referencing another, need to replicate it here
              * in order to use the reference buffer's payload and ensure the
              * reference is not released prematurely */
             if (msg->has_reference)
-               mmal_buffer_header_replicate(msg->drvbuf.client_context->buffer,
-                                            msg->drvbuf_ref.client_context->buffer);
+               mmal_buffer_header_replicate(client_context->buffer,
+                                             //FIXME
+                                            /*msg->drvbuf_ref.*/client_context->buffer);
 
             /* Sanity check the size of the transfer so we don't overrun our buffer */
             if (!vcos_verify(msg->buffer_header.offset + msg->buffer_header.length <=
-                             msg->drvbuf.client_context->buffer->alloc_size))
+                             client_context->buffer->alloc_size))
             {
                LOG_TRACE("buffer too small (%i, %i)",
                          msg->buffer_header.offset + msg->buffer_header.length,
-                         msg->drvbuf.client_context->buffer->alloc_size);
+                         client_context->buffer->alloc_size);
                msg->buffer_header.length = 0;
                msg->buffer_header.flags |= MMAL_BUFFER_HEADER_FLAG_TRANSMISSION_FAILED;
-               msg->drvbuf.client_context->callback(msg);
+               client_context->callback(msg);
                vchiq_release_message(service, vchiq_header);
                break;
             }
@@ -357,7 +561,7 @@ static VCHIQ_STATUS_T mmal_vc_vchiq_callback(VCHIQ_REASON_T reason,
             {
                /* a buffer full of data for us to process */
                VCHIQ_STATUS_T vst = VCHIQ_SUCCESS;
-               LOG_TRACE("queue bulk rx: %p, %d", msg->drvbuf.client_context->buffer->data +
+               LOG_TRACE("queue bulk rx: %p, %d", client_context->buffer->data +
                          msg->buffer_header.offset, msg->buffer_header.length);
                int len = msg->buffer_header.length;
                len = (len+3) & (~3);
@@ -370,7 +574,7 @@ static VCHIQ_STATUS_T mmal_vc_vchiq_callback(VCHIQ_REASON_T reason,
                {
                   /* buffer transferred using vchiq bulk xfer */
                   vst = vchiq_queue_bulk_receive(service,
-                     msg->drvbuf.client_context->buffer->data + msg->buffer_header.offset,
+                     client_context->buffer->data + msg->buffer_header.offset,
                      len, vchiq_header);
 
                   if (vst != VCHIQ_SUCCESS)
@@ -378,20 +582,20 @@ static VCHIQ_STATUS_T mmal_vc_vchiq_callback(VCHIQ_REASON_T reason,
                      LOG_TRACE("queue bulk rx len %d failed to start", msg->buffer_header.length);
                      msg->buffer_header.length = 0;
                      msg->buffer_header.flags |= MMAL_BUFFER_HEADER_FLAG_TRANSMISSION_FAILED;
-                     msg->drvbuf.client_context->callback(msg);
+                     client_context->callback(msg);
                      vchiq_release_message(service, vchiq_header);
                   }
                }
                else if (msg->payload_in_message <= MMAL_VC_SHORT_DATA)
                {
                   /* we have already received the buffer data in the message! */
-                  MMAL_BUFFER_HEADER_T *dst = msg->drvbuf.client_context->buffer;
+                  MMAL_BUFFER_HEADER_T *dst = client_context->buffer;
                   LOG_TRACE("short data: dst = %p, dst->data = %p, len %d short len %d", dst, dst? dst->data : 0, msg->buffer_header.length, msg->payload_in_message);
                   memcpy(dst->data, msg->short_data, msg->payload_in_message);
                   dst->offset = 0;
                   dst->length = msg->payload_in_message;
                   vchiq_release_message(service, vchiq_header);
-                  msg->drvbuf.client_context->callback(msg);
+                  client_context->callback(msg);
                }
                else
                {
@@ -409,9 +613,9 @@ static VCHIQ_STATUS_T mmal_vc_vchiq_callback(VCHIQ_REASON_T reason,
                 * be picked up in the callback to complete the sequence.
                 */
                LOG_TRACE("doing cb (%p) context %p",
-                         msg->drvbuf.client_context, msg->drvbuf.client_context ?
-                         msg->drvbuf.client_context->callback : 0);
-               msg->drvbuf.client_context->callback(msg);
+                         client_context, client_context ?
+                         client_context->callback : 0);
+               client_context->callback(msg);
                LOG_TRACE("done callback back to client");
                vchiq_release_message(service, vchiq_header);
             }
@@ -422,7 +626,7 @@ static VCHIQ_STATUS_T mmal_vc_vchiq_callback(VCHIQ_REASON_T reason,
          }
          else
          {
-            MMAL_WAITER_T *waiter = msg->u.waiter;
+            MMAL_WAITER_T *waiter = lookup_waiter(msg->u.waiter);
             LOG_TRACE("waking up waiter at %p", waiter);
             vcos_assert(waiter->inuse);
             int len = vcos_min(waiter->destlen, vchiq_header->size);
@@ -453,18 +657,21 @@ static VCHIQ_STATUS_T mmal_vc_vchiq_callback(VCHIQ_REASON_T reason,
          if (msg_hdr->msgid == MMAL_WORKER_BUFFER_TO_HOST)
          {
             mmal_worker_buffer_from_host *msg = (mmal_worker_buffer_from_host *)msg_hdr;
-            vcos_assert(msg->drvbuf.client_context->magic == MMAL_MAGIC);
-            msg->drvbuf.client_context->callback(msg);
-            LOG_TRACE("bulk rx done: %p, %d", msg->buffer_header.data, msg->buffer_header.length);
+            MMAL_VC_CLIENT_BUFFER_CONTEXT_T *client_context = mmal_vc_lookup_client_context(msg->drvbuf.client_context);
+            vcos_assert(client_context->magic == MMAL_MAGIC);
+            client_context->callback(msg);
+            LOG_TRACE("bulk rx done: %08x, %d", msg->buffer_header.data, msg->buffer_header.length);
          }
          else
          {
             mmal_worker_event_to_host *msg = (mmal_worker_event_to_host *)msg_hdr;
-            MMAL_PORT_T *port = mmal_vc_port_by_number(msg->client_component, msg->port_type, msg->port_num);
+            MMAL_COMPONENT_T *component = lookup_client_component(msg->client_component);
+            MMAL_VC_CLIENT_BUFFER_CONTEXT_T *client_context =
+                  mmal_vc_lookup_client_context(mmal_buffer_header_driver_data(msg->delayed_buffer)->client_context);
+            MMAL_PORT_T *port = mmal_vc_port_by_number(component, msg->port_type, msg->port_num);
 
             vcos_assert(port);
-            mmal_buffer_header_driver_data(msg->delayed_buffer)->
-               client_context->callback_event(port, msg->delayed_buffer);
+            client_context->callback_event(port, msg->delayed_buffer);
             LOG_DEBUG("event bulk rx done, length %d", msg->length);
          }
          vchiq_release_message(service, header);
@@ -477,21 +684,25 @@ static VCHIQ_STATUS_T mmal_vc_vchiq_callback(VCHIQ_REASON_T reason,
          if (msg_hdr->msgid == MMAL_WORKER_BUFFER_TO_HOST)
          {
             mmal_worker_buffer_from_host *msg = (mmal_worker_buffer_from_host *)msg_hdr;
-            LOG_TRACE("bulk rx aborted: %p, %d", msg->buffer_header.data, msg->buffer_header.length);
-            vcos_assert(msg->drvbuf.client_context->magic == MMAL_MAGIC);
+            MMAL_VC_CLIENT_BUFFER_CONTEXT_T *client_context = mmal_vc_lookup_client_context(msg->drvbuf.client_context);
+            LOG_TRACE("bulk rx aborted: %08x, %d", msg->buffer_header.data, msg->buffer_header.length);
+            vcos_assert(client_context->magic == MMAL_MAGIC);
             msg->buffer_header.flags |= MMAL_BUFFER_HEADER_FLAG_TRANSMISSION_FAILED;
-            msg->drvbuf.client_context->callback(msg);
+            client_context->callback(msg);
          }
          else
          {
             mmal_worker_event_to_host *msg = (mmal_worker_event_to_host *)msg_hdr;
-            MMAL_PORT_T *port = mmal_vc_port_by_number(msg->client_component, msg->port_type, msg->port_num);
+            MMAL_COMPONENT_T *component = lookup_client_component(msg->client_component);
+            MMAL_VC_CLIENT_BUFFER_CONTEXT_T *client_context =
+                  mmal_vc_lookup_client_context(mmal_buffer_header_driver_data(msg->delayed_buffer)->client_context);
+            MMAL_PORT_T *port = mmal_vc_port_by_number(component, msg->port_type, msg->port_num);
 
             vcos_assert(port);
             LOG_DEBUG("event bulk rx aborted");
             msg->delayed_buffer->flags |= MMAL_BUFFER_HEADER_FLAG_TRANSMISSION_FAILED;
-            mmal_buffer_header_driver_data(msg->delayed_buffer)->
-               client_context->callback_event(port, msg->delayed_buffer);
+
+            client_context->callback_event(port, msg->delayed_buffer);
          }
          vchiq_release_message(service, header);
       }
@@ -499,9 +710,12 @@ static VCHIQ_STATUS_T mmal_vc_vchiq_callback(VCHIQ_REASON_T reason,
    case VCHIQ_BULK_TRANSMIT_ABORTED:
       {
          mmal_worker_buffer_from_host *msg = (mmal_worker_buffer_from_host *)context;
-         LOG_INFO("bulk tx aborted: %p, %d", msg->buffer_header.data, msg->buffer_header.length);
-         vcos_assert(msg->drvbuf.client_context->magic == MMAL_MAGIC);
+         MMAL_VC_CLIENT_BUFFER_CONTEXT_T *client_context =
+               mmal_vc_lookup_client_context(msg->drvbuf.client_context);
+         LOG_INFO("bulk tx aborted: %08x, %d", msg->buffer_header.data, msg->buffer_header.length);
+         vcos_assert(client_context->magic == MMAL_MAGIC);
          /* Nothing to do as the VC side will release the buffer and notify us of the error */
+         client_context = NULL;    // Avoid warnings in release builds
       }
       break;
    default:
@@ -548,7 +762,7 @@ MMAL_STATUS_T mmal_vc_sendwait_message(struct MMAL_CLIENT_T *client,
 
    waiter = get_waiter(client);
    msg_header->msgid  = msgid;
-   msg_header->u.waiter = waiter;
+   msg_header->u.waiter = waiter->index;
    msg_header->magic  = MMAL_MAGIC;
 
    waiter->dest    = dest;
